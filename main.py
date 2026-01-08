@@ -1,12 +1,9 @@
 import yt_dlp
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-import requests
 
 app = FastAPI()
 
-# CORS સેટિંગ્સ જેથી તમારી વેબસાઈટ સાથે કનેક્ટ થઈ શકે
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,22 +13,37 @@ app.add_middleware(
 
 @app.get("/get-info")
 def get_info(url: str):
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is missing")
+        
     try:
-        ydl_opts = {'quiet': True, 'no_warnings': True}
+        # YouTube અને Insta માટે બેસ્ટ સેટિંગ્સ
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'format': 'best',
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'extract_flat': False,
+        }
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # વિડિયો ડેટા કાઢવો
             info = ydl.extract_info(url, download=False)
+            
+            if not info:
+                return {"status": "error", "message": "Could not extract info"}
+
             return {
                 "status": "success",
-                "title": info.get('title'),
-                "thumbnail": info.get('thumbnail'),
-                "url": info.get('url'), # આ ડાયરેક્ટ ડાઉનલોડ લિંક છે
-                "formats": info.get('formats')
+                "title": info.get('title', 'No Title'),
+                "thumbnail": info.get('thumbnail', ''),
+                "url": info.get('url', '')
             }
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@app.get("/download")
-async def download(video_url: str):
-    # આનાથી યુઝર તમારી સાઈટ પરથી જ વિડિયો ડાઉનલોડ કરી શકશે
-    response = requests.get(video_url, stream=True)
-    return StreamingResponse(response.iter_content(chunk_size=1024*1024), media_type="video/mp4")
+@app.get("/")
+def home():
+    return {"message": "AllSave API is Running"}
